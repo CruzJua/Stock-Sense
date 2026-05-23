@@ -45,5 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>StockSense needs camera access to scan your fridge and pantry.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>StockSense needs photo access to import grocery receipts.</string>
 </dict>
 </plist>
