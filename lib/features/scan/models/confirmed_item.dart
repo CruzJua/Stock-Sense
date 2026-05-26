@@ -30,11 +30,15 @@ class ConfirmedItem {
 
   /// Build from the raw JSON shape returned by the Edge Function.
   factory ConfirmedItem.fromJson(Map<String, dynamic> json) {
+    final rawCategory = json['category'] as String? ?? 'other';
+    final safeCategory =
+        categories.contains(rawCategory) ? rawCategory : 'other';
+
     return ConfirmedItem(
       name: (json['name'] as String?) ?? 'Unknown item',
       quantity: ((json['quantity'] as num?) ?? 1).toDouble(),
       unit: (json['unit'] as String?) ?? 'each',
-      category: (json['category'] as String?) ?? 'other',
+      category: safeCategory,
     );
   }
 

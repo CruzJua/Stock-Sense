@@ -18,9 +18,8 @@ class InventoryService {
           .from('items')
           .insert({
             'user_id': userId,
-            'name': item.name,
-            'quantity': item.quantity,
-            'unit': item.unit,
+            'item_name': item.name,
+            'quantity': item.quantity.toInt(),
             'category': item.category,
           })
           .select('id')

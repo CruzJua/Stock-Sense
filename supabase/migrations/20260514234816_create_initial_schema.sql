@@ -16,6 +16,7 @@ CREATE TABLE public.items (
   description text,
   quantity int,
   embedding vector(1536),
+  category text,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
