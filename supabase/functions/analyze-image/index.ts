@@ -1,6 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-async function callGPT4oVision(imageBase64: string) {
+const VALID_CATEGORIES = new Set([
+  "produce", "dairy", "meat", "bakery", "frozen", "pantry", "beverage", "snack", "other",
+]);
+
+// Shared helper: calls GPT-4o Vision and normalises the returned items.
+async function callGPT4oVision(imageBase64: string, prompt: string, mode: string) {
   const apiKey = Deno.env.get("OPENAI_API_KEY");
   if (!apiKey) throw new Error("OPENAI_API_KEY secret is not set. Add it to supabase/functions/.env for local dev.");
 
@@ -10,22 +15,8 @@ async function callGPT4oVision(imageBase64: string) {
     messages: [{
       role: "user",
       content: [
-        {
-          type: "text",
-          text: `You are a grocery receipt parser. Extract every food/grocery item from this receipt image.
-Return ONLY a JSON object in this exact format:
-{
-  "items": [
-    { "name": "string", "quantity": number, "unit": "string", "category": "string" }
-  ]
-}
-Categories must be one of: produce, dairy, meat, bakery, frozen, pantry, beverage, snack, other.
-If quantity or unit cannot be determined, use 1 and "each".`,
-        },
-        {
-          type: "image_url",
-          image_url: { url: `data:image/jpeg;base64,${imageBase64}` },
-        },
+        { type: "text", text: prompt },
+        { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
       ],
     }],
     max_tokens: 1500,
@@ -42,54 +33,59 @@ If quantity or unit cannot be determined, use 1 and "each".`,
 
   const data = await res.json();
 
-  // Surface API-level errors (e.g. invalid key, quota exceeded)
   if (!res.ok || !data.choices) {
     const msg = data.error?.message ?? JSON.stringify(data);
     throw new Error(`OpenAI API error (${res.status}): ${msg}`);
   }
 
   const parsed = JSON.parse(data.choices[0].message.content);
-  return { mode: "receipt", items: parsed.items };
+
+  // Safeguard: ensure every item has a valid category; fall back to "other"
+  const items = (parsed.items ?? []).map((item: any) => ({
+    name: item.name ?? "Unknown item",
+    quantity: typeof item.quantity === "number" ? item.quantity : 1,
+    unit: item.unit ?? "each",
+    category: VALID_CATEGORIES.has(item.category) ? item.category : "other",
+  }));
+
+  return { mode, items };
 }
 
+// ── Receipt mode ─────────────────────────────────────────────────────────────
 
-async function callGoogleVision(imageBase64: string) {
-  const apiKey = Deno.env.get("GOOGLE_VISION_API_KEY");
-  if (!apiKey) throw new Error("GOOGLE_VISION_API_KEY secret is not set. Add it to supabase/functions/.env for local dev.");
-
-  const url = `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`;
-
-  const body = {
-    requests: [{
-      image: { content: imageBase64 },
-      features: [
-        { type: "LABEL_DETECTION", maxResults: 20 },
-        { type: "OBJECT_LOCALIZATION", maxResults: 20 },
-      ],
-    }],
-  };
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  const data = await res.json();
-
-  // Surface API-level errors (e.g. invalid key, quota exceeded)
-  if (!res.ok || !data.responses) {
-    const msg = data.error?.message ?? JSON.stringify(data);
-    throw new Error(`Google Vision API error (${res.status}): ${msg}`);
-  }
-
-  // Normalize into a flat list of detected item names
-  const labels = data.responses[0].labelAnnotations?.map((l: any) => l.description) ?? [];
-  const objects = data.responses[0].localizedObjectAnnotations?.map((o: any) => o.name) ?? [];
-  const items = [...new Set([...labels, ...objects])]; // deduplicate
-
-  return { mode: "fridge", items };
+const RECEIPT_PROMPT = `You are a grocery receipt parser. Extract every food/grocery item from this receipt image.
+Return ONLY a JSON object in this exact format:
+{
+  "items": [
+    { "name": "string", "quantity": number, "unit": "string", "category": "string" }
+  ]
 }
+Categories must be one of: produce, dairy, meat, bakery, frozen, pantry, beverage, snack, other.
+If quantity or unit cannot be determined, use 1 and "each".`;
+
+// ── Fridge / Pantry mode ─────────────────────────────────────────────────────
+// GPT-4o is used here instead of Google Vision because Vision returns generic
+// labels like "Shelf" or "Ingredient" with no way to guide it. GPT-4o can
+// identify specific food items and assign categories from a single image.
+
+const FRIDGE_PANTRY_PROMPT = `You are a smart kitchen inventory scanner. Look at this photo of a fridge or pantry shelf and identify every distinct food or beverage item you can see.
+
+Return ONLY a JSON object in this exact format:
+{
+  "items": [
+    { "name": "string", "quantity": number, "unit": "string", "category": "string" }
+  ]
+}
+
+Rules:
+- Use specific product names (e.g. "Whole Milk", "Cheddar Cheese", "Greek Yogurt") — never generic labels like "Food", "Ingredient", or "Shelf".
+- Estimate quantity from visible containers/packages. If unclear, use 1.
+- Use natural units: "bottle", "carton", "can", "bag", "box", "bunch", "each", etc.
+- Categories must be one of: produce, dairy, meat, bakery, frozen, pantry, beverage, snack, other.
+- Skip non-food items (shelves, containers, condiment packets that aren't identifiable).
+- If the image is too blurry or unclear to identify any items, return { "items": [] }.`;
+
+// ── Request handler ───────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
   try {
@@ -97,9 +93,10 @@ Deno.serve(async (req: Request) => {
 
     let result;
     if (mode === "receipt") {
-      result = await callGPT4oVision(imageBase64);
+      result = await callGPT4oVision(imageBase64, RECEIPT_PROMPT, "receipt");
     } else {
-      result = await callGoogleVision(imageBase64);
+      // Both "fridge" and "pantry" use the same GPT-4o vision prompt
+      result = await callGPT4oVision(imageBase64, FRIDGE_PANTRY_PROMPT, mode);
     }
 
     return new Response(JSON.stringify(result), {
@@ -113,3 +110,4 @@ Deno.serve(async (req: Request) => {
     });
   }
 });
+
