@@ -74,12 +74,10 @@ class _ScanScreenState extends State<ScanScreen> {
   }
 
   Future<Uint8List?> _compress(XFile xFile) async {
-    if (kIsWeb) {
-      // flutter_image_compress doesn't support web — read bytes directly.
-      return await xFile.readAsBytes();
-    }
-    return FlutterImageCompress.compressWithFile(
-      File(xFile.path).absolute.path,
+    final bytes = await xFile.readAsBytes();
+    
+    return await FlutterImageCompress.compressWithList(
+      bytes,
       minWidth: 1024,
       minHeight: 1024,
       quality: 75,

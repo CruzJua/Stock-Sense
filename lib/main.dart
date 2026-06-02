@@ -2,22 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'dart:io' show Platform;
 
 import 'core/theme/app_theme.dart';
 import 'core/navigation/root_shell.dart';
-
-/// Returns the local Supabase URL for the current platform.
-///
-/// For physical Android devices, run `adb reverse tcp:54321 tcp:54321`
-/// before launching so the phone tunnels its localhost through USB to
-/// the host machine. Both emulators and physical devices then use 127.0.0.1.
-String get _supabaseUrl {
-  if (kIsWeb) return 'http://127.0.0.1:54321';
-  if (Platform.isAndroid) return 'http://127.0.0.1:54321';
-  return 'http://127.0.0.1:54321';
-}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,12 +12,13 @@ Future<void> main() async {
   // Local cache
   await Hive.initFlutter();
   await Hive.openBox('userPreferences');
+  await Hive.openBox('inventoryCache');
 
   // Supabase — uses local instance; swap URL + key for production.
-  await Supabase.initialize(
-    url: _supabaseUrl,
-    anonKey: 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH',
-  );
+await Supabase.initialize(
+  url: 'https://nfsegggccezuawboegxi.supabase.co',
+  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5mc2VnZ2djY2V6dWF3Ym9lZ3hpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxNjAzNjMsImV4cCI6MjA5NDczNjM2M30.NiMQiF7vGUZk6nRArjGxN8h1rLWFKHlA4X7GSEzgoQo',
+);
 
   runApp(
     const ProviderScope(
