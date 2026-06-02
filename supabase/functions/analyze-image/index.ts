@@ -22,6 +22,9 @@ async function callGPT4oVision(imageBase64: string, prompt: string, mode: string
     max_tokens: 1500,
   };
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 120_000);
+
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -29,7 +32,9 @@ async function callGPT4oVision(imageBase64: string, prompt: string, mode: string
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify(body),
+    signal: controller.signal,
   });
+  clearTimeout(timeout);
 
   const data = await res.json();
 
@@ -88,6 +93,16 @@ Rules:
 // ── Request handler ───────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
+    // Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+      },
+    });
+  }
+  
   try {
     const { imageBase64, mode } = await req.json();
 
