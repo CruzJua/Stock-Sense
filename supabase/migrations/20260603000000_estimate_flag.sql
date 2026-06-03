@@ -1,0 +1,1 @@
+ALTER TABLE public.items ADD COLUMN is_expiry_estimated BOOLEAN DEFAULT FALSE;

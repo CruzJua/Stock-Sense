@@ -16,6 +16,8 @@ class InventoryItem {
     this.description,
     this.itemCode,
     required this.createdAt,
+    this.expiryDate,
+    this.isExpiryEstimated = false,
   });
 
   final String id;
@@ -36,12 +38,24 @@ class InventoryItem {
 
   final DateTime createdAt;
 
+  /// The date this item expires.
+  final DateTime? expiryDate;
+
+  final bool isExpiryEstimated;
+
   // ---------------------------------------------------------------------------
   // Serialisation
   // ---------------------------------------------------------------------------
 
   /// Constructs an [InventoryItem] from a Supabase row map.
   factory InventoryItem.fromJson(Map<String, dynamic> json) {
+    final days = json['estimated_shelf_life_days'] as int?;
+    final computedExpiry = days != null ? DateTime.now().add(Duration(days: days)) : null;
+    
+    final expiry = json['expiry_date'] != null 
+        ? DateTime.parse(json['expiry_date'] as String) 
+        : computedExpiry;
+        
     return InventoryItem(
       id: json['id'] as String,
       userId: json['user_id'] as String,
@@ -51,6 +65,8 @@ class InventoryItem {
       description: json['description'] as String?,
       itemCode: json['item_code'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
+      expiryDate: expiry,
+      isExpiryEstimated: json['is_expiry_estimated'] as bool? ?? false,
     );
   }
 
@@ -64,6 +80,7 @@ class InventoryItem {
         'description': description,
         'item_code': itemCode,
         'created_at': createdAt.toIso8601String(),
+        'expiry_date': expiryDate?.toIso8601String(),
       };
 
   /// Returns a copy with the given fields replaced.
@@ -72,6 +89,7 @@ class InventoryItem {
     int? quantity,
     String? category,
     String? description,
+    DateTime? expiryDate,
   }) {
     return InventoryItem(
       id: id,
@@ -82,6 +100,7 @@ class InventoryItem {
       description: description ?? this.description,
       itemCode: itemCode,
       createdAt: createdAt,
+      expiryDate: expiryDate ?? this.expiryDate,
     );
   }
 
