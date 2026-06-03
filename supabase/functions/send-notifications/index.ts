@@ -23,8 +23,19 @@ const SUPABASE_URL     = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const FIREBASE_PROJECT_ID = Deno.env.get("FIREBASE_PROJECT_ID") ?? "";
 const FIREBASE_SERVICE_ACCOUNT_JSON = Deno.env.get("FIREBASE_SERVICE_ACCOUNT") ?? "";
+const corsHeaders = {
+    'Access-Control-Allow-Origin': 'https://stocksense.juancruzdev.com',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 
 Deno.serve(async (_req: Request) => {
+  // Handle CORS preflight
+  if (_req.method === "OPTIONS") {
+    return new Response(null, {
+      headers: corsHeaders,
+    });
+  }
+  
   try {
     // Use the service-role key so we can read all users' items.
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -63,7 +74,7 @@ Deno.serve(async (_req: Request) => {
 
     if (userMessages.size === 0) {
       return new Response(JSON.stringify({ sent: 0 }), {
-        headers: { "Content-Type": "application/json" },
+        headers: {...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -118,13 +129,13 @@ Deno.serve(async (_req: Request) => {
     }
 
     return new Response(JSON.stringify({ sent, alerts: userMessages.size }), {
-      headers: { "Content-Type": "application/json" },
+      headers: {...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: {...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

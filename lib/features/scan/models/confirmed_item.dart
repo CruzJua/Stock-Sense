@@ -7,12 +7,14 @@ class ConfirmedItem {
   double quantity;
   String unit;
   String category;
+  DateTime? expiryDate;
 
   ConfirmedItem({
     required this.name,
     required this.quantity,
     required this.unit,
     required this.category,
+    this.expiryDate,
   });
 
   /// Allowed category values — must match the Supabase items table constraint.
@@ -33,12 +35,16 @@ class ConfirmedItem {
     final rawCategory = json['category'] as String? ?? 'other';
     final safeCategory =
         categories.contains(rawCategory) ? rawCategory : 'other';
-
+    
+    final days = json['estimated_shelf_life_days'] as int?;
+    final expiry = days != null ? DateTime.now().add(Duration(days: days)) : null;
+    
     return ConfirmedItem(
       name: (json['name'] as String?) ?? 'Unknown item',
       quantity: ((json['quantity'] as num?) ?? 1).toDouble(),
       unit: (json['unit'] as String?) ?? 'each',
       category: safeCategory,
+      expiryDate: expiry,
     );
   }
 

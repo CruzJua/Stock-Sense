@@ -4,6 +4,10 @@ const VALID_CATEGORIES = new Set([
   "produce", "dairy", "meat", "bakery", "frozen", "pantry", "beverage", "snack", "other",
 ]);
 
+const corsHeaders = {
+    'Access-Control-Allow-Origin': 'https://stocksense.juancruzdev.com',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 // Shared helper: calls GPT-4o Vision and normalises the returned items.
 async function callGPT4oVision(imageBase64: string, prompt: string, mode: string) {
   const apiKey = Deno.env.get("OPENAI_API_KEY");
@@ -62,7 +66,7 @@ const RECEIPT_PROMPT = `You are a grocery receipt parser. Extract every food/gro
 Return ONLY a JSON object in this exact format:
 {
   "items": [
-    { "name": "string", "quantity": number, "unit": "string", "category": "string" }
+    { "name": "string", "quantity": number, "unit": "string", "category": "string", "estimated_shelf_life_days": number (an integer based on standard grocery shelf life)}
   ]
 }
 Categories must be one of: produce, dairy, meat, bakery, frozen, pantry, beverage, snack, other.
@@ -78,7 +82,7 @@ const FRIDGE_PANTRY_PROMPT = `You are a smart kitchen inventory scanner. Look at
 Return ONLY a JSON object in this exact format:
 {
   "items": [
-    { "name": "string", "quantity": number, "unit": "string", "category": "string" }
+    { "name": "string", "quantity": number, "unit": "string", "category": "string", "estimated_shelf_life_days": number (an integer based on standard grocery shelf life) }
   ]
 }
 
@@ -96,10 +100,7 @@ Deno.serve(async (req: Request) => {
     // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-      },
+      headers: corsHeaders 
     });
   }
   
@@ -115,13 +116,13 @@ Deno.serve(async (req: Request) => {
     }
 
     return new Response(JSON.stringify(result), {
-      headers: { "Content-Type": "application/json" },
+      headers: {...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: {...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
