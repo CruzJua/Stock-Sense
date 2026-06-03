@@ -69,7 +69,7 @@ class HomeScreen extends ConsumerWidget {
 
           // ── Low stock section ──
           if (lowStock.isNotEmpty) ...[
-            _buildSectionHeader('⚠️ Low Stock', AppColors.warning),
+            _buildSectionHeader('Low Stock', AppColors.warning),
             const SizedBox(height: 12),
             ...lowStock.take(3).map((item) => _LowStockTile(item: item)),
             const SizedBox(height: 28),
@@ -77,10 +77,10 @@ class HomeScreen extends ConsumerWidget {
 
           // ── Recent additions ──
           if (recentFive.isNotEmpty) ...[
-            _buildSectionHeader('🕐 Recently Added', AppColors.green),
+            _buildSectionHeader('Recently Added', AppColors.green),
             const SizedBox(height: 12),
             SizedBox(
-              height: 110,
+              height: 130,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: recentFive.length,
@@ -278,9 +278,13 @@ class _StatCard extends StatelessWidget {
           Icon(icon, color: color, size: 22),
           const SizedBox(height: 8),
           Text(value,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
               style: AppTextStyles.headlineLarge
                   .copyWith(color: color, fontSize: 24)),
           Text(label,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
               style: AppTextStyles.labelSmall
                   .copyWith(color: AppColors.textMuted)),
         ],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
@@ -8,6 +9,8 @@ import '../../features/auth/screens/login_screen.dart';
 import '../../features/home/screens/home_screen.dart';
 import '../../features/scan/screens/scan_screen.dart';
 import '../../features/inventory/screens/inventory_screen.dart';
+import '../../features/settings/screens/settings_screen.dart';
+import '../../features/auth/screens/update_password_screen.dart';
 
 /// The root shell of the app.
 ///
@@ -31,6 +34,7 @@ class _RootShellState extends ConsumerState<RootShell> {
     HomeScreen(),
     ScanScreen(),
     InventoryScreen(),
+    SettingsScreen(),
   ];
 
   static const List<BottomNavigationBarItem> _navItems = [
@@ -49,10 +53,29 @@ class _RootShellState extends ConsumerState<RootShell> {
       activeIcon: Icon(Icons.inventory_2_rounded),
       label: 'Inventory',
     ),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.settings_outlined),
+      activeIcon: Icon(Icons.settings_rounded),
+      label: 'Settings',
+    ),
   ];
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(authStateProvider, (previous, next) {
+
+      final state = next.valueOrNull;
+      if (state?.session == null && _selectedIndex != 0) {
+        setState(() => _selectedIndex = 0);
+      }
+
+      if (state?.event == AuthChangeEvent.passwordRecovery) {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const UpdatePasswordScreen()),
+        );
+      }
+    });
+    // Keep this down here so the rest of the build method works
     final authState = ref.watch(authStateProvider);
 
     return authState.when(

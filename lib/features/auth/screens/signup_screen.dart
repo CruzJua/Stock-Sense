@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -45,6 +46,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
   Future<void> _signUp() async {
     if (!_formKey.currentState!.validate()) return;
+    TextInput.finishAutofillContext();
     _setLoading(true);
 
     try {
@@ -147,117 +149,123 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
           Form(
             key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Error banner
-                if (_errorMessage != null) ...[
-                  _ErrorBanner(message: _errorMessage!),
+            child: AutofillGroup(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Error banner
+                  if (_errorMessage != null) ...[
+                    _ErrorBanner(message: _errorMessage!),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Full name
+                  TextFormField(
+                    controller: _nameCtrl,
+                    autofillHints: const [AutofillHints.name],
+                    keyboardType: TextInputType.name,
+                    textCapitalization: TextCapitalization.words,
+                    style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textPrimary),
+                    decoration: const InputDecoration(
+                      hintText: 'Full name',
+                      prefixIcon: Icon(Icons.person_outline_rounded),
+                    ),
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return 'Name is required.';
+                      return null;
+                    },
+                  ),
+
                   const SizedBox(height: 16),
+
+                  // Email
+                  TextFormField(
+                    controller: _emailCtrl,
+                    autofillHints: const [AutofillHints.email],
+                    keyboardType: TextInputType.emailAddress,
+                    style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textPrimary),
+                    decoration: const InputDecoration(
+                      hintText: 'Email address',
+                      prefixIcon: Icon(Icons.email_outlined),
+                    ),
+                    validator: (v) {
+                      if (v == null || v.isEmpty) return 'Email is required.';
+                      if (!v.contains('@')) return 'Enter a valid email.';
+                      return null;
+                    },
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Password
+                  TextFormField(
+                    controller: _passwordCtrl,
+                    autofillHints: const [AutofillHints.newPassword],
+                    obscureText: _obscurePassword,
+                    style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textPrimary),
+                    decoration: InputDecoration(
+                      hintText: 'Password',
+                      prefixIcon: const Icon(Icons.lock_outline_rounded),
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscurePassword
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined),
+                        onPressed: () =>
+                            setState(() => _obscurePassword = !_obscurePassword),
+                      ),
+                    ),
+                    validator: (v) {
+                      if (v == null || v.isEmpty) return 'Password is required.';
+                      if (v.length < 6) {
+                        return 'Password must be at least 6 characters.';
+                      }
+                      return null;
+                    },
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Confirm password
+                  TextFormField(
+                    controller: _confirmCtrl,
+                    autofillHints: const [AutofillHints.newPassword],
+                    obscureText: _obscureConfirm,
+                    style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textPrimary),
+                    decoration: InputDecoration(
+                      hintText: 'Confirm password',
+                      prefixIcon: const Icon(Icons.lock_outline_rounded),
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscureConfirm
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined),
+                        onPressed: () =>
+                            setState(() => _obscureConfirm = !_obscureConfirm),
+                      ),
+                    ),
+                    validator: (v) {
+                      if (v != _passwordCtrl.text) {
+                        return 'Passwords do not match.';
+                      }
+                      return null;
+                    },
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  ElevatedButton(
+                    onPressed: _isLoading ? null : _signUp,
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: AppColors.black),
+                          )
+                        : const Text('Create Account'),
+                  ),
                 ],
-
-                // Full name
-                TextFormField(
-                  controller: _nameCtrl,
-                  keyboardType: TextInputType.name,
-                  textCapitalization: TextCapitalization.words,
-                  style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textPrimary),
-                  decoration: const InputDecoration(
-                    hintText: 'Full name',
-                    prefixIcon: Icon(Icons.person_outline_rounded),
-                  ),
-                  validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'Name is required.';
-                    return null;
-                  },
-                ),
-
-                const SizedBox(height: 16),
-
-                // Email
-                TextFormField(
-                  controller: _emailCtrl,
-                  keyboardType: TextInputType.emailAddress,
-                  style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textPrimary),
-                  decoration: const InputDecoration(
-                    hintText: 'Email address',
-                    prefixIcon: Icon(Icons.email_outlined),
-                  ),
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Email is required.';
-                    if (!v.contains('@')) return 'Enter a valid email.';
-                    return null;
-                  },
-                ),
-
-                const SizedBox(height: 16),
-
-                // Password
-                TextFormField(
-                  controller: _passwordCtrl,
-                  obscureText: _obscurePassword,
-                  style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textPrimary),
-                  decoration: InputDecoration(
-                    hintText: 'Password',
-                    prefixIcon: const Icon(Icons.lock_outline_rounded),
-                    suffixIcon: IconButton(
-                      icon: Icon(_obscurePassword
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined),
-                      onPressed: () =>
-                          setState(() => _obscurePassword = !_obscurePassword),
-                    ),
-                  ),
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Password is required.';
-                    if (v.length < 6) {
-                      return 'Password must be at least 6 characters.';
-                    }
-                    return null;
-                  },
-                ),
-
-                const SizedBox(height: 16),
-
-                // Confirm password
-                TextFormField(
-                  controller: _confirmCtrl,
-                  obscureText: _obscureConfirm,
-                  style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textPrimary),
-                  decoration: InputDecoration(
-                    hintText: 'Confirm password',
-                    prefixIcon: const Icon(Icons.lock_outline_rounded),
-                    suffixIcon: IconButton(
-                      icon: Icon(_obscureConfirm
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined),
-                      onPressed: () =>
-                          setState(() => _obscureConfirm = !_obscureConfirm),
-                    ),
-                  ),
-                  validator: (v) {
-                    if (v != _passwordCtrl.text) {
-                      return 'Passwords do not match.';
-                    }
-                    return null;
-                  },
-                ),
-
-                const SizedBox(height: 24),
-
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _signUp,
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: AppColors.black),
-                        )
-                      : const Text('Create Account'),
-                ),
-              ],
-            ),
+              ),
+          ),
           ),
         ],
       ),
