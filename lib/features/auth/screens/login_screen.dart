@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -40,6 +41,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _signInWithEmail() async {
     if (!_formKey.currentState!.validate()) return;
+    TextInput.finishAutofillContext();
     _setLoading(true);
 
     try {
@@ -59,9 +61,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _signInWithGoogle() async {
     _setLoading(true);
     try {
-      await Supabase.instance.client.auth.signInWithOAuth(
-        OAuthProvider.google,
-      );
+      await Supabase.instance.client.auth.signInWithOAuth(OAuthProvider.google);
     } on AuthException catch (e) {
       _setError(e.message);
     } catch (_) {
@@ -148,84 +148,105 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget _buildForm() {
     return Form(
       key: _formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Error banner
-          if (_errorMessage != null) ...[
-            _ErrorBanner(message: _errorMessage!),
-            const SizedBox(height: 16),
-          ],
+      child: AutofillGroup(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Error banner
+            if (_errorMessage != null) ...[
+              _ErrorBanner(message: _errorMessage!),
+              const SizedBox(height: 16),
+            ],
 
-          // Email
-          TextFormField(
-            controller: _emailCtrl,
-            keyboardType: TextInputType.emailAddress,
-            style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textPrimary),
-            decoration: const InputDecoration(
-              hintText: 'Email address',
-              prefixIcon: Icon(Icons.email_outlined),
+            // Email
+            TextFormField(
+              controller: _emailCtrl,
+              autofillHints: [AutofillHints.email],
+              keyboardType: TextInputType.emailAddress,
+              style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textPrimary),
+              decoration: const InputDecoration(
+                hintText: 'Email address',
+                prefixIcon: Icon(Icons.email_outlined),
+              ),
+              validator: (v) {
+                if (v == null || v.isEmpty) return 'Email is required.';
+                if (!v.contains('@')) return 'Enter a valid email.';
+                return null;
+              },
             ),
-            validator: (v) {
-              if (v == null || v.isEmpty) return 'Email is required.';
-              if (!v.contains('@')) return 'Enter a valid email.';
-              return null;
-            },
-          ),
 
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-          // Password
-          TextFormField(
-            controller: _passwordCtrl,
-            obscureText: _obscurePassword,
-            style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textPrimary),
-            decoration: InputDecoration(
-              hintText: 'Password',
-              prefixIcon: const Icon(Icons.lock_outline_rounded),
-              suffixIcon: IconButton(
-                icon: Icon(_obscurePassword
-                    ? Icons.visibility_off_outlined
-                    : Icons.visibility_outlined),
-                onPressed: () =>
-                    setState(() => _obscurePassword = !_obscurePassword),
+            // Password
+            TextFormField(
+              controller: _passwordCtrl,
+              obscureText: _obscurePassword,
+              autofillHints: [AutofillHints.password],
+              style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textPrimary),
+              decoration: InputDecoration(
+                hintText: 'Password',
+                prefixIcon: const Icon(Icons.lock_outline_rounded),
+                suffixIcon: IconButton(
+                  icon: Icon(_obscurePassword
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined),
+                  onPressed: () =>
+                      setState(() => _obscurePassword = !_obscurePassword),
+                ),
+              ),
+              validator: (v) {
+                if (v == null || v.isEmpty) return 'Password is required.';
+                if (v.length < 6) return 'Password must be at least 6 characters.';
+                return null;
+              },
+            ),
+
+            const SizedBox(height: 8),
+
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () async{
+                  final email = _emailCtrl.text.trim();
+                  if (email.isEmpty) {
+                    _setError('Please enter your email address first.');
+                    return;
+                  }
+                  _setLoading(true);
+                  try {
+                    await Supabase.instance.client.auth.resetPasswordForEmail(email);
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Password reset link sent to $email')),
+                      );
+                    }
+                  } catch (e) {
+                    _setError('Failed to send reset link. Try again.');
+                  } finally {
+                    _setLoading(false);
+                  }
+                },
+                child: const Text('Forgot password?'),
               ),
             ),
-            validator: (v) {
-              if (v == null || v.isEmpty) return 'Password is required.';
-              if (v.length < 6) return 'Password must be at least 6 characters.';
-              return null;
-            },
-          ),
 
-          const SizedBox(height: 8),
+            const SizedBox(height: 8),
 
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: () {
-                // TODO: implement forgot-password flow
-              },
-              child: const Text('Forgot password?'),
+            // Primary CTA
+            ElevatedButton(
+              onPressed: _isLoading ? null : _signInWithEmail,
+              child: _isLoading
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: AppColors.black),
+                    )
+                  : const Text('Sign In'),
             ),
-          ),
-
-          const SizedBox(height: 8),
-
-          // Primary CTA
-          ElevatedButton(
-            onPressed: _isLoading ? null : _signInWithEmail,
-            child: _isLoading
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: AppColors.black),
-                  )
-                : const Text('Sign In'),
-          ),
-        ],
-      ),
+          ],
+        ),
+    )
     );
   }
 
