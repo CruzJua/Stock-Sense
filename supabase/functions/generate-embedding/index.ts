@@ -6,15 +6,16 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 // Accepts: { itemName: string }
 // Returns: { embedding: number[] }   (1536-dimensional float array)
 // ---------------------------------------------------------------------------
+const corsHeaders = {
+    'Access-Control-Allow-Origin': 'https://stocksense.juancruzdev.com',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 
 Deno.serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-      },
+      headers: corsHeaders,
     });
   }
 
@@ -48,19 +49,13 @@ Deno.serve(async (req: Request) => {
     const embedding: number[] = data.data[0].embedding;
 
     return new Response(JSON.stringify({ embedding }), {
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      },
+      headers: {...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      },
+      headers: {...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
