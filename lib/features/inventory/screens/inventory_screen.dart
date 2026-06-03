@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shimmer/shimmer.dart';
@@ -9,6 +11,8 @@ import '../models/inventory_item.dart';
 import '../providers/inventory_provider.dart';
 import '../services/search_service.dart';
 import 'item_detail_screen.dart';
+import 'barcode_scanner.dart';
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Inventory Screen
@@ -151,11 +155,59 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openAdd,
+      floatingActionButton: SpeedDial(
         backgroundColor: AppColors.green,
         foregroundColor: AppColors.black,
-        label: const Text('+'),
+        icon: Icons.add,
+        activeIcon: Icons.close,
+        spacing: 12,
+        overlayColor: Colors.black,
+        overlayOpacity: 0.5,
+        children: [
+          SpeedDialChild(
+            child: const Icon(Icons.edit_note_rounded),
+            backgroundColor: AppColors.surfaceDark,
+            foregroundColor: AppColors.green,
+            label: 'Manual Input',
+            labelStyle: const TextStyle(color: AppColors.textPrimary),
+            labelBackgroundColor: AppColors.surfaceDark,
+            onTap: () {
+               // Open Item Detail screen completely blank
+               Navigator.push(
+                 context,
+                 MaterialPageRoute(builder: (_) => const ItemDetailScreen(item: null)),
+               );
+            },
+          ),
+          if (!kIsWeb)
+            SpeedDialChild(
+              child: const Icon(Icons.qr_code_scanner_rounded),
+              backgroundColor: AppColors.surfaceDark,
+              foregroundColor: AppColors.green,
+              label: 'Scan Barcode',
+              labelStyle: const TextStyle(color: AppColors.textPrimary),
+              labelBackgroundColor: AppColors.surfaceDark,
+              onTap: () async {
+                 // 1. Open scanner
+                 final result = await Navigator.push(
+                   context,
+                   MaterialPageRoute(builder: (_) => const BarcodeScannerScreen()),
+                 );
+
+                 // 2. If barcode found, open Item Detail screen pre-filled!
+                 if (result != null && context.mounted) {
+                   Navigator.push(
+                     context,
+                     MaterialPageRoute(builder: (_) => ItemDetailScreen(
+                       item: null, // null means "Add Mode"
+                       initialName: result['name'],
+                       initialCategory: result['category'],
+                     )),
+                   );
+                 }
+              },
+            ),
+        ],
       ),
     );
   }

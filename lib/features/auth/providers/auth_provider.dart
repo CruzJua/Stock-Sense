@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -18,3 +20,24 @@ final authStateProvider = StreamProvider<AuthState>((ref) {
 final currentSessionProvider = Provider<Session?>((ref) {
   return supabase.auth.currentSession;
 });
+
+
+Future<void> setupPushNotifications() async {
+  final messaging = FirebaseMessaging.instance;
+  
+  // 1. Request OS permission (Requires the POST_NOTIFICATIONS manifest tag on Android)
+  final settings = await messaging.requestPermission();
+  
+  if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+    // 2. Get the unique device token
+    final token = await messaging.getToken();
+    if (token != null) {
+      // 3. Save it to Supabase so the Edge Function knows where to send alerts
+      await Supabase.instance.client.from('device_tokens').upsert({
+        'user_id': Supabase.instance.client.auth.currentUser!.id,
+        'token': token,
+        'platform': Platform.operatingSystem,
+      });
+    }
+  }
+}

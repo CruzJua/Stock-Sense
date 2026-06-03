@@ -217,6 +217,7 @@ class _ItemCardState extends State<_ItemCard> {
   late final TextEditingController _qtyCtrl;
   late final TextEditingController _unitCtrl;
   late String _category;
+  late DateTime? _expiryDate;
 
   @override
   void initState() {
@@ -228,6 +229,7 @@ class _ItemCardState extends State<_ItemCard> {
     _unitCtrl =
         TextEditingController(text: widget.item.unit);
     _category = widget.item.category;
+    _expiryDate = widget.item.expiryDate;
   }
 
   @override
@@ -244,6 +246,7 @@ class _ItemCardState extends State<_ItemCard> {
       quantity: double.tryParse(_qtyCtrl.text) ?? 1,
       unit: _unitCtrl.text,
       category: _category,
+      expiryDate: _expiryDate,
     ));
   }
 
@@ -349,6 +352,39 @@ class _ItemCardState extends State<_ItemCard> {
                 _notify();
               }
             },
+          ),
+          const SizedBox(height: 12),
+          _FieldLabel(label: 'EXPIRATION DATE'),
+          const SizedBox(height: 4),
+          InkWell(
+            onTap: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _expiryDate ?? DateTime.now(),
+                firstDate: DateTime(2000),
+                lastDate: DateTime(2100),
+              );
+              if (picked != null) {
+                setState(() => _expiryDate = picked);
+                _notify();
+              }
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.backgroundDark,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Text(
+                _expiryDate == null 
+                    ? 'Tap to select' 
+                    : '${_expiryDate!.month}/${_expiryDate!.day}/${_expiryDate!.year}',
+                style: AppTextStyles.titleSmall.copyWith(
+                  color: _expiryDate == null ? AppColors.textMuted : AppColors.textPrimary,
+                ),
+              ),
+            ),
           ),
         ],
       ),

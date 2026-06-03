@@ -21,6 +21,8 @@ class InventoryService {
             'item_name': item.name,
             'quantity': item.quantity.toInt(),
             'category': item.category,
+            'expiry_date': item.expiryDate?.toIso8601String(),
+            'is_expiry_estimated': item.expiryDate != null,
           })
           .select('id')
           .single();

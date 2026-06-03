@@ -21,10 +21,19 @@ import '../models/inventory_item.dart';
 ///
 /// Reached from [InventoryScreen] via the FAB (add) or by tapping a card (edit).
 class ItemDetailScreen extends StatefulWidget {
-  const ItemDetailScreen({super.key, required this.item});
+  const ItemDetailScreen({
+    super.key,
+    required this.item,
+    this.initialName,
+    this.initialCategory,
+    this.initialExpiryDate,
+  });
 
   /// The item to edit, or null when adding a new item manually.
   final InventoryItem? item;
+  final String? initialName;
+  final String? initialCategory;
+  final DateTime? initialExpiryDate;
 
   @override
   State<ItemDetailScreen> createState() => _ItemDetailScreenState();
@@ -37,22 +46,37 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
   late final TextEditingController _descCtrl;
   String _category = 'other';
   bool _saving = false;
+  DateTime? _expiryDate;
+  bool _isEstimated = false;
 
   bool get _isEdit => widget.item != null;
 
   static const _categories = [
-    'produce', 'dairy', 'meat', 'bakery',
-    'frozen', 'pantry', 'beverage', 'snack', 'other',
+    'produce',
+    'dairy',
+    'meat',
+    'bakery',
+    'frozen',
+    'pantry',
+    'beverage',
+    'snack',
+    'other',
   ];
 
   @override
   void initState() {
     super.initState();
     final item = widget.item;
-    _nameCtrl = TextEditingController(text: item?.name ?? '');
-    _qtyCtrl  = TextEditingController(text: item?.quantity.toString() ?? '1');
+    _nameCtrl = TextEditingController(
+      text: item?.name ?? widget.initialName ?? '',
+    );
+    _qtyCtrl = TextEditingController(text: item?.quantity.toString() ?? '1');
     _descCtrl = TextEditingController(text: item?.description ?? '');
-    _category = item?.category ?? 'other';
+    _category = item?.category ?? widget.initialCategory ?? 'other';
+    _expiryDate = item?.expiryDate ?? widget.initialExpiryDate;
+    _isEstimated =
+        item?.isExpiryEstimated ??
+        (widget.initialExpiryDate != null && item == null);
   }
 
   @override
@@ -71,30 +95,41 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     setState(() => _saving = true);
     try {
       final userId = supabase.auth.currentUser!.id;
-      final name  = _nameCtrl.text.trim();
-      final qty   = int.tryParse(_qtyCtrl.text.trim()) ?? 1;
-      final desc  = _descCtrl.text.trim();
+      final name = _nameCtrl.text.trim();
+      final qty = int.tryParse(_qtyCtrl.text.trim()) ?? 1;
+      final desc = _descCtrl.text.trim();
 
       String itemId;
 
       if (_isEdit) {
         // Update the existing row.
-        await supabase.from('items').update({
-          'item_name':   name,
-          'quantity':    qty,
-          'category':    _category,
-          'description': desc.isEmpty ? null : desc,
-        }).eq('id', widget.item!.id);
+        await supabase
+            .from('items')
+            .update({
+              'item_name': name,
+              'quantity': qty,
+              'category': _category,
+              'description': desc.isEmpty ? null : desc,
+              'expiry_date': _expiryDate?.toIso8601String(),
+              'is_expiry_estimated': _isEstimated,
+            })
+            .eq('id', widget.item!.id);
         itemId = widget.item!.id;
       } else {
         // Insert a new row and get back its generated id.
-        final result = await supabase.from('items').insert({
-          'user_id':     userId,
-          'item_name':   name,
-          'quantity':    qty,
-          'category':    _category,
-          'description': desc.isEmpty ? null : desc,
-        }).select('id').single();
+        final result = await supabase
+            .from('items')
+            .insert({
+              'user_id': userId,
+              'item_name': name,
+              'quantity': qty,
+              'category': _category,
+              'description': desc.isEmpty ? null : desc,
+              'expiry_date': _expiryDate?.toIso8601String(),
+              'is_expiry_estimated': _isEstimated,
+            })
+            .select('id')
+            .single();
         itemId = result['id'] as String;
       }
 
@@ -106,15 +141,17 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     } catch (e) {
       setState(() => _saving = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Failed to save: $e'),
-          backgroundColor: AppColors.error,
-          action: SnackBarAction(
-            label: 'Retry',
-            textColor: AppColors.white,
-            onPressed: _save,
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save: $e'),
+            backgroundColor: AppColors.error,
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: AppColors.white,
+              onPressed: _save,
+            ),
           ),
-        ));
+        );
       }
     }
   }
@@ -153,14 +190,19 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel',
-                style: AppTextStyles.bodyMedium
-                    .copyWith(color: AppColors.textSecondary)),
+            child: Text(
+              'Cancel',
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text('Delete',
-                style: AppTextStyles.bodyMedium.copyWith(color: AppColors.error)),
+            child: Text(
+              'Delete',
+              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.error),
+            ),
           ),
         ],
       ),
@@ -194,8 +236,10 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
         backgroundColor: AppColors.surfaceDark,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded,
-              color: AppColors.textPrimary),
+          icon: const Icon(
+            Icons.arrow_back_ios_rounded,
+            color: AppColors.textPrimary,
+          ),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
@@ -205,8 +249,10 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
         actions: [
           if (_isEdit)
             IconButton(
-              icon: const Icon(Icons.delete_outline_rounded,
-                  color: AppColors.error),
+              icon: const Icon(
+                Icons.delete_outline_rounded,
+                color: AppColors.error,
+              ),
               onPressed: _saving ? null : _delete,
             ),
         ],
@@ -241,6 +287,8 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
               const SizedBox(height: 20),
               _buildCategoryDropdown(),
               const SizedBox(height: 20),
+              _buildExpiryField(),
+              const SizedBox(height: 20),
               _buildField(
                 label: 'Description (optional)',
                 controller: _descCtrl,
@@ -258,19 +306,23 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                     foregroundColor: AppColors.black,
                     disabledBackgroundColor: AppColors.greenDark,
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   child: _saving
                       ? const SizedBox(
                           width: 22,
                           height: 22,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2.5, color: AppColors.black),
+                            strokeWidth: 2.5,
+                            color: AppColors.black,
+                          ),
                         )
                       : Text(
                           _isEdit ? 'Save Changes' : 'Add to Inventory',
-                          style: AppTextStyles.bodyLarge
-                              .copyWith(fontWeight: FontWeight.w700),
+                          style: AppTextStyles.bodyLarge.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                 ),
               ),
@@ -295,9 +347,12 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: AppTextStyles.labelSmall
-                .copyWith(color: AppColors.textSecondary)),
+        Text(
+          label,
+          style: AppTextStyles.labelSmall.copyWith(
+            color: AppColors.textSecondary,
+          ),
+        ),
         const SizedBox(height: 8),
         TextFormField(
           controller: controller,
@@ -308,8 +363,9 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
           validator: validator,
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle:
-                AppTextStyles.bodyLarge.copyWith(color: AppColors.textMuted),
+            hintStyle: AppTextStyles.bodyLarge.copyWith(
+              color: AppColors.textMuted,
+            ),
             filled: true,
             fillColor: AppColors.surfaceDark,
             border: OutlineInputBorder(
@@ -328,8 +384,10 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: AppColors.error),
             ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 14,
+            ),
           ),
         ),
       ],
@@ -340,9 +398,12 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Category',
-            style: AppTextStyles.labelSmall
-                .copyWith(color: AppColors.textSecondary)),
+        Text(
+          'Category',
+          style: AppTextStyles.labelSmall.copyWith(
+            color: AppColors.textSecondary,
+          ),
+        ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
           value: _category,
@@ -363,20 +424,127 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: AppColors.green, width: 1.5),
             ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 14,
+            ),
           ),
           items: _categories
-              .map((c) => DropdownMenuItem(
-                    value: c,
-                    child: Text(
-                      c[0].toUpperCase() + c.substring(1),
-                      style: AppTextStyles.bodyLarge,
-                    ),
-                  ))
+              .map(
+                (c) => DropdownMenuItem(
+                  value: c,
+                  child: Text(
+                    c[0].toUpperCase() + c.substring(1),
+                    style: AppTextStyles.bodyLarge,
+                  ),
+                ),
+              )
               .toList(),
           onChanged: (v) => setState(() => _category = v ?? 'other'),
         ),
+      ],
+    );
+  }
+
+  Widget _buildExpiryField() {
+    final dateStr = _expiryDate == null
+        ? 'No Date selected'
+        : '${_expiryDate!.month}, ${_expiryDate!.day}, ${_expiryDate!.year}';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Expiration Date',
+          style: AppTextStyles.labelSmall.copyWith(
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () async {
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: _expiryDate ?? DateTime.now(),
+              firstDate: DateTime(2000),
+              lastDate: DateTime(2100),
+              builder: (context, child) {
+                return Theme(
+                  data: Theme.of(context).copyWith(
+                    colorScheme: const ColorScheme.dark(
+                      primary: AppColors.green,
+                      onPrimary: AppColors.surfaceDark,
+                      onSurface: AppColors.textPrimary,
+                    ),
+                  ),
+                  child: child!,
+                );
+              },
+            );
+
+            if (picked != null) {
+              setState(() {
+                _expiryDate = picked;
+                _isEstimated = false;
+              });
+            }
+          },
+          child: InputDecorator(
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: AppColors.surfaceDark,
+              suffixIcon: const Icon(
+                Icons.calendar_today_rounded,
+                color: AppColors.textSecondary,
+                size: 20,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 14,
+              ),
+            ),
+            child: Text(
+              dateStr,
+              style: AppTextStyles.bodyLarge.copyWith(
+                color: _expiryDate == null
+                    ? AppColors.textMuted
+                    : AppColors.textPrimary,
+              ),
+            ),
+          ),
+        ),
+        if (_isEstimated) ...[
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.only(left: 4),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.info_outline_rounded,
+                  size: 14,
+                  color: AppColors.textSecondary,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Date is estimated. Tap to set exact date.',
+                  style: AppTextStyles.labelSmall.copyWith(
+                    color: AppColors.textSecondary,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }

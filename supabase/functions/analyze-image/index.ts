@@ -55,6 +55,7 @@ async function callGPT4oVision(imageBase64: string, prompt: string, mode: string
     quantity: typeof item.quantity === "number" ? item.quantity : 1,
     unit: item.unit ?? "each",
     category: VALID_CATEGORIES.has(item.category) ? item.category : "other",
+    estimated_shelf_life_days: item.estimated_shelf_life_days,
   }));
 
   return { mode, items };
@@ -87,11 +88,12 @@ Return ONLY a JSON object in this exact format:
 }
 
 Rules:
-- Use specific product names (e.g. "Whole Milk", "Cheddar Cheese", "Greek Yogurt") — never generic labels like "Food", "Ingredient", or "Shelf".
+- Use specific product names and brands where available (e.g. "Whole Milk", "Cheddar Cheese", "Greek Yogurt by The Greek Gods") — never generic labels like "Food", "Ingredient", or "Shelf".
 - Estimate quantity from visible containers/packages. If unclear, use 1.
 - Use natural units: "bottle", "carton", "can", "bag", "box", "bunch", "each", etc.
 - Categories must be one of: produce, dairy, meat, bakery, frozen, pantry, beverage, snack, other.
 - Skip non-food items (shelves, containers, condiment packets that aren't identifiable).
+- Estimate the days until the item expires assuming the item was bought recently (an integer based on standard grocery shelf life).
 - If the image is too blurry or unclear to identify any items, return { "items": [] }.`;
 
 // ── Request handler ───────────────────────────────────────────────────────────

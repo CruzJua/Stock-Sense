@@ -69,6 +69,10 @@ class _RootShellState extends ConsumerState<RootShell> {
         setState(() => _selectedIndex = 0);
       }
 
+      if (state?.session != null) {
+        setupPushNotifications();
+      }      
+
       if (state?.event == AuthChangeEvent.passwordRecovery) {
         Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const UpdatePasswordScreen()),
