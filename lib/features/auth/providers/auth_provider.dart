@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 
 /// A convenience getter for the Supabase client used throughout the app.
 final supabase = Supabase.instance.client;
@@ -21,23 +22,48 @@ final currentSessionProvider = Provider<Session?>((ref) {
   return supabase.auth.currentSession;
 });
 
+/// Fetches the user profile from the public.users table.
+final userProfileProvider = FutureProvider.autoDispose<Map<String, dynamic>?>((ref) async {
+  final user = supabase.auth.currentUser;
+  if (user == null) {
+    debugPrint('No user logged in');
+    return null;
+  }
+  
+  try {
+    final data = await supabase.from('users').select().eq('id', user.id).maybeSingle();
+    debugPrint('Fetched user data: $data');
+    return data;
+  } catch (e) {
+    debugPrint('Error fetching user data: $e');
+    return null;
+  }
+});
+
 
 Future<void> setupPushNotifications() async {
-  final messaging = FirebaseMessaging.instance;
+  if (kIsWeb) return; // Skip push notifications on web
   
-  // 1. Request OS permission (Requires the POST_NOTIFICATIONS manifest tag on Android)
-  final settings = await messaging.requestPermission();
-  
-  if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-    // 2. Get the unique device token
-    final token = await messaging.getToken();
-    if (token != null) {
-      // 3. Save it to Supabase so the Edge Function knows where to send alerts
-      await Supabase.instance.client.from('device_tokens').upsert({
-        'user_id': Supabase.instance.client.auth.currentUser!.id,
-        'token': token,
-        'platform': Platform.operatingSystem,
-      });
+  try{
+    final messaging = FirebaseMessaging.instance;
+
+    // 1. Request OS permission (Requires the POST_NOTIFICATIONS manifest tag on Android)
+    final settings = await messaging.requestPermission();
+
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      // 2. Get the unique device token
+      final token = await messaging.getToken();
+      if (token != null) {
+        // 3. Save it to Supabase so the Edge Function knows where to send alerts
+        await Supabase.instance.client.from('device_tokens').upsert({
+          'user_id': Supabase.instance.client.auth.currentUser!.id,
+          'token': token,
+          'platform': Platform.operatingSystem,
+        }, onConflict: 'token');
+        debugPrint('✅ Push notification setup successful!');
+      }
     }
+  } catch (e) {
+    debugPrint('❌ Push notification setup failed: $e');
   }
 }

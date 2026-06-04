@@ -45,17 +45,21 @@ Deno.serve(async (_req: Request) => {
     threeDaysFromNow.setDate(today.getDate() + 3);
 
     // ── 1. Find expiring items ─────────────────────────────────────────────
-    const { data: expiringItems } = await supabase
+    const { data: expiringItems, error: expErr } = await supabase
       .from("items")
       .select("id, item_name, user_id, expiry_date")
       .lte("expiry_date", threeDaysFromNow.toISOString())
       .gte("expiry_date", today.toISOString());
 
+    if (expErr) throw new Error("Expiring query failed: " + expErr.message)
+
     // ── 2. Find low-stock items ────────────────────────────────────────────
-    const { data: lowStockItems } = await supabase
+    const { data: lowStockItems, error: lowErr } = await supabase
       .from("items")
       .select("id, item_name, user_id, quantity")
       .lte("quantity", 2);
+
+    if (lowErr) throw new Error("Low stock query failed: " + lowErr.message);
 
     // ── 3. Collect affected user IDs ───────────────────────────────────────
     const userMessages: Map<string, string[]> = new Map();
@@ -78,6 +82,9 @@ Deno.serve(async (_req: Request) => {
       });
     }
 
+    console.log("🗓️ Expiring items found:", expiringItems?.length ?? 0, expiringItems?.map(i => i.item_name));
+    console.log("📦 Low stock items found:", lowStockItems?.length ?? 0, lowStockItems?.map(i => i.item_name));
+
     // ── 4. Look up device tokens ───────────────────────────────────────────
     const userIds = [...userMessages.keys()];
     const { data: tokens } = await supabase
@@ -93,6 +100,16 @@ Deno.serve(async (_req: Request) => {
     let firebaseAccessToken = "";
     if (FIREBASE_SERVICE_ACCOUNT_JSON) {
       firebaseAccessToken = await getFirebaseAccessToken(FIREBASE_SERVICE_ACCOUNT_JSON);
+    } else {
+      console.error("❌ FIREBASE_SERVICE_ACCOUNT secret is missing!");
+    }
+    if (!firebaseAccessToken) {
+      console.error("❌ Failed to get Firebase access token! Check FIREBASE_SERVICE_ACCOUNT secret.");
+      return new Response(JSON.stringify({ 
+        sent: 0, 
+        alerts: userMessages.size,
+        error: "Firebase access token is empty — check secrets"
+      }), { headers: {...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // ── 6. Dispatch FCM notifications ─────────────────────────────────────
@@ -125,7 +142,18 @@ Deno.serve(async (_req: Request) => {
         }
       );
 
-      if (fcmRes.ok) sent++;
+      if (fcmRes.ok) {
+        sent++;
+      } else {
+        const errBody = await fcmRes.text();
+        console.error(`❌ FCM send failed [${fcmRes.status}]: ${errBody}`);
+        
+        // If the token is old/unregistered, delete it from the database
+        if (errBody.includes("UNREGISTERED") || errBody.includes("INVALID_ARGUMENT")) {
+          console.log(`🗑️ Deleting dead token for user ${user_id}`);
+          await supabase.from("device_tokens").delete().eq("token", token);
+        }
+      }
     }
 
     return new Response(JSON.stringify({ sent, alerts: userMessages.size }), {

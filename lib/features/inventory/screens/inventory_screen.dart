@@ -171,13 +171,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             label: 'Manual Input',
             labelStyle: const TextStyle(color: AppColors.textPrimary),
             labelBackgroundColor: AppColors.surfaceDark,
-            onTap: () {
-               // Open Item Detail screen completely blank
-               Navigator.push(
-                 context,
-                 MaterialPageRoute(builder: (_) => const ItemDetailScreen(item: null)),
-               );
-            },
+            onTap: _openAdd,
           ),
           if (!kIsWeb)
             SpeedDialChild(
