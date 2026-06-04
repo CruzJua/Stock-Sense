@@ -25,8 +25,12 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final itemsAsync = ref.watch(inventoryProvider);
-    final user = supabase.auth.currentUser;
-    final displayName = user?.email?.split('@').first ?? 'there';
+    final profileAsync = ref.watch(userProfileProvider);
+    final displayName = profileAsync.when(
+      data: (data) => data?['full_name'] as String? ?? 'there',
+      loading: () => '...',
+      error: (_, __) => 'there',
+    );
 
     return Scaffold(
       backgroundColor: AppColors.backgroundDark,
@@ -44,7 +48,16 @@ class HomeScreen extends ConsumerWidget {
 
   Widget _buildDashboard(
       BuildContext context, String name, List<InventoryItem> items) {
-    final lowStock = items.where((i) => i.quantity <= 2 && i.quantity >= 0).toList();
+    final lowStock = items
+        .where((i) => i.quantity <= 2 && i.quantity >= 0)
+        .toList()
+        ..sort((a, b) => a.quantity.compareTo(b.quantity));
+    final now = DateTime.now();
+    final threeDays = now.add(const Duration(days: 3));
+    final expiringSoon = items
+        .where((i) => i.expiryDate != null && i.expiryDate!.isAfter(now) && i.expiryDate!.isBefore(threeDays))
+        .toList()
+      ..sort((a, b) => a.expiryDate!.compareTo(b.expiryDate!));
     final recent   = items
         .toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -67,11 +80,34 @@ class HomeScreen extends ConsumerWidget {
           _buildStatRow(items.length, lowStock.length, categoryCount),
           const SizedBox(height: 28),
 
+
+          // ── Expiring Soon ──
+          if (expiringSoon.isNotEmpty) ...[
+            _buildSectionHeader('Expiring Soon 🗓️', AppColors.error),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: expiringSoon.length > 5 ? 290 : expiringSoon.length * 58.0,
+              child: ListView.builder(
+                physics: const ClampingScrollPhysics(),
+                itemCount: expiringSoon.length,
+                itemBuilder: (_, i) => _ExpiringTile(item: expiringSoon[i]),
+              ),
+            ),
+            const SizedBox(height: 28),
+          ],
+
           // ── Low stock section ──
           if (lowStock.isNotEmpty) ...[
             _buildSectionHeader('Low Stock', AppColors.warning),
             const SizedBox(height: 12),
-            ...lowStock.take(3).map((item) => _LowStockTile(item: item)),
+            SizedBox(
+              height: lowStock.length > 5 ? 290 : lowStock.length * 58.0,
+              child: ListView.builder(
+                physics: const ClampingScrollPhysics(),
+                itemCount: lowStock.length,
+                itemBuilder: (_, i) => _LowStockTile(item: lowStock[i]),
+              ),
+            ),
             const SizedBox(height: 28),
           ],
 
@@ -406,6 +442,50 @@ class _RecentItemCard extends StatelessWidget {
             'Qty: ${item.quantity}',
             style: AppTextStyles.labelSmall
                 .copyWith(color: AppColors.textMuted),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+class _ExpiringTile extends StatelessWidget {
+  const _ExpiringTile({required this.item});
+  final InventoryItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final daysLeft = item.expiryDate!.difference(DateTime.now()).inDays;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceDark,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.error),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.timer_outlined, color: AppColors.error, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(item.name,
+                style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.w600)),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.errorLight.withAlpha(30),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              daysLeft == 0 ? 'Today!' : 'In $daysLeft day${daysLeft == 1 ? '' : 's'}',
+              style: AppTextStyles.labelSmall.copyWith(
+                color: AppColors.error,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),

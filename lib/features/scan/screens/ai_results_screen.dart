@@ -6,6 +6,7 @@ import '../../../core/theme/app_text_styles.dart';
 import '../models/confirmed_item.dart';
 import '../providers/confirmed_items_provider.dart';
 import '../services/inventory_service.dart';
+import '../../inventory/providers/inventory_provider.dart';
 
 /// Displays AI-detected items and lets the user review, edit, delete, and
 /// add items before saving them to Supabase.
@@ -40,6 +41,7 @@ class _AiResultsScreenState extends ConsumerState<AiResultsScreen> {
     try {
       await InventoryService().saveItems(items);
       if (!mounted) return;
+      ref.read(inventoryProvider.notifier).reload();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Items saved to inventory! 🎉'),
