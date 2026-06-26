@@ -17,14 +17,14 @@ class SettingsScreen extends StatelessWidget {
         title: Text('Sign Out', style: AppTextStyles.headlineMedium),
         content: Text('Are you sure you want to log out?', style: AppTextStyles.bodyLarge),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Sign Out', style: TextStyle(color: Colors.white)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
           ),
         ],
       ),
